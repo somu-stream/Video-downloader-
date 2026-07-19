@@ -10,13 +10,18 @@ CORS(app)
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-YT_OPTS_EXTRA = {
+YT_EXTRA = {
     'extractor_args': {
         'youtube': {
             'player_client': ['android', 'ios'],
         }
     }
 }
+
+@app.route('/')
+def home():
+    return jsonify({'status': 'Server running'})
+
 
 @app.route('/get-info', methods=['POST'])
 def get_info():
@@ -28,7 +33,7 @@ def get_info():
 
     try:
         ydl_opts = {'quiet': True, 'no_warnings': True}
-        ydl_opts.update(YT_OPTS_EXTRA)
+        ydl_opts.update(YT_EXTRA)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -69,20 +74,21 @@ def download():
             'merge_output_format': 'mp4',
             'outtmpl': outtmpl,
         }
-        ydl_opts.update(YT_OPTS_EXTRA)
+        ydl_opts.update(YT_EXTRA)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
 
-        final_file = os.path.join(DOWNLOAD_DIR, unique_id + ".mp4")
-        if not os.path.exists(final_file):
-            for f in os.listdir(DOWNLOAD_DIR):
-                if f.startswith(unique_id):
-                    final_file = os.path.join(DOWNLOAD_DIR, f)
-                    break
+        final_file = None
+        for f in os.listdir(DOWNLOAD_DIR):
+            if f.startswith(unique_id):
+                final_file = f
+                break
 
-        file_name_only = os.path.basename(final_file)
-        download_link = request.host_url + "files/" + file_name_only
+        if not final_file:
+            return jsonify({'error': 'File not created'}), 500
+
+        download_link = request.host_url + "files/" + final_file
 
         return jsonify({
             'download_url': download_link,
@@ -95,7 +101,15 @@ def download():
 
 @app.route('/files/<filename>')
 def serve_file(filename):
-    return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
+    file_path = os.path.join(DOWNLOAD_DIR, filename)
+    if not os.path.exists(file_path):
+        return jsonify({'error': 'File not found'}), 404
+
+    file_size = os.path.getsize(file_path)
+    response = send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
+    response.headers['Content-Length'] = str(file_size)
+    response.headers['Accept-Ranges'] = 'bytes'
+    return response
 
 
 if __name__ == '__main__':
