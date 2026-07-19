@@ -10,6 +10,8 @@ CORS(app)
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
+BASE_URL = "https://video-downloader-api-v2.onrender.com"
+
 YT_EXTRA = {
     'extractor_args': {
         'youtube': {
@@ -88,7 +90,7 @@ def download():
         if not final_file:
             return jsonify({'error': 'File not created'}), 500
 
-        download_link = request.host_url + "files/" + final_file
+        download_link = BASE_URL + "/files/" + final_file
 
         return jsonify({
             'download_url': download_link,
